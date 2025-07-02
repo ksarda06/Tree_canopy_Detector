@@ -3,6 +3,8 @@ import { GoogleMap, useLoadScript, DrawingManager } from '@react-google-maps/api
 
 const libraries = ['drawing'];
 
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
 const mapContainerStyle = {
   width: '800px',
   height: '400px',
@@ -14,7 +16,7 @@ const center = {
 }; // Default center (San Francisco)
 export default function MapComponent({ onAnalyze }) {
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: "AIzaSyC-q9XC1HeM3zfEIzAsbLioaZJVhKe8ciI",  // REPLACE THIS
+    googleMapsApiKey: apiKey,  // REPLACE THIS
     libraries,
   });
 
