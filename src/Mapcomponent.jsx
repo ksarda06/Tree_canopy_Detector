@@ -13,29 +13,32 @@ const mapContainerStyle = {
 const center = {
   lat: 21.250000,
   lng: 81.629997,
-}; // Default center (San Francisco)
+};
+
 export default function MapComponent({ onAnalyze }) {
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: apiKey,  // REPLACE THIS
+    googleMapsApiKey: apiKey,
     libraries,
   });
 
   const [rectangleBounds, setRectangleBounds] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
-    const [rectangleOverlay, setRectangleOverlay] = useState(null);
-    const [zoomLevel, setZoomLevel] = useState(12);   // NEW
-
+  const [rectangleOverlay, setRectangleOverlay] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(12);
   const [mapInstance, setMapInstance] = useState(null);
+
   const handleMapLoad = (map) => {
-  map.setMapTypeId('satellite');
-  setMapInstance(map);     // NEW
-  setZoomLevel(map.getZoom());
+    map.setMapTypeId('satellite');
+    setMapInstance(map);
+    setZoomLevel(map.getZoom());
   };
+
   const handleZoomChanged = () => {
     if (mapInstance) {
       setZoomLevel(mapInstance.getZoom());
     }
   };
+
   const onRectangleComplete = useCallback((rectangle) => {
     const bounds = rectangle.getBounds();
     const ne = bounds.getNorthEast();
@@ -48,15 +51,12 @@ export default function MapComponent({ onAnalyze }) {
       west: sw.lng(),
     };
 
-     setRectangleOverlay(rectangle);
+    setRectangleOverlay(rectangle);
     setRectangleBounds(selectedBounds);
     setStatusMessage('Rectangle drawn. Click Submit to send.');
+  }, []);
 
-    // Optionally remove the rectangle from map after drawing
-//rectangle.setMap(null);
-  },[]);
-  
-   const handleSubmit = async () => {
+  const handleSubmit = async () => {
     if (!rectangleBounds) {
       setStatusMessage('No rectangle drawn yet.');
       return;
@@ -64,19 +64,12 @@ export default function MapComponent({ onAnalyze }) {
 
     try {
       setStatusMessage('Submitting polygon to backend...');
-
-      // Example backend POST request
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rectangleBounds),
-      });
-
-      if (!response.ok) throw new Error('Server error');
-      const data = await response.json();
-
-      setStatusMessage('Polygon submitted successfully!');
-      console.log('Server response:', data);
+      if (onAnalyze) {
+        await onAnalyze(rectangleBounds);
+        setStatusMessage('Polygon submitted successfully!');
+      } else {
+        setStatusMessage('No onAnalyze function provided.');
+      }
     } catch (error) {
       console.error(error);
       setStatusMessage('Error submitting polygon.');
@@ -84,7 +77,7 @@ export default function MapComponent({ onAnalyze }) {
   };
 
   const handleClear = () => {
-   if (rectangleOverlay) {
+    if (rectangleOverlay) {
       rectangleOverlay.setMap(null);
       setRectangleOverlay(null);
     }
@@ -92,66 +85,70 @@ export default function MapComponent({ onAnalyze }) {
     setStatusMessage('Polygon cleared.');
   };
 
-
-
   if (loadError) return <div>Error loading maps</div>;
   if (!isLoaded) return <div>Loading Maps...</div>;
 
   return (
-    <div  style={{
+    <div
+      style={{
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
         fontFamily: 'Arial, sans-serif',
         backgroundColor: '#f4f4f4',
-      }}>
-    <div style={{
+      }}
+    >
+      <div
+        style={{
           padding: '2rem',
           backgroundColor: '#fff',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           textAlign: 'center',
-        }}>
-      <h1 style={{ marginBottom: '1rem', color:'black'}}>Tree Canopy Detector</h1>
-      <GoogleMap 
-        mapContainerStyle={mapContainerStyle}
-        zoom={40}
-        center={center}
-        //mapTypeId="satellite"
-        options={{
-          mapTypeControl: false,
         }}
-        onLoad={handleMapLoad}
-        onZoomChanged={handleZoomChanged}  // NEW
-
       >
-        <DrawingManager
-          onRectangleComplete={onRectangleComplete}
+        <h1 style={{ marginBottom: '1rem', color: 'black' }}>
+          Tree Canopy Detector
+        </h1>
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          zoom={zoomLevel}
+          center={center}
           options={{
-            drawingControl: true,
-            drawingControlOptions: {
-              drawingModes: ['rectangle']
-            }
+            mapTypeControl: false,
           }}
-        />
-      </GoogleMap>
-       <div style={{ marginTop: '0.5rem', fontWeight: 'bold', color:'black'}}>
+          onLoad={handleMapLoad}
+          onZoomChanged={handleZoomChanged}
+        >
+          <DrawingManager
+            onRectangleComplete={onRectangleComplete}
+            options={{
+              drawingControl: true,
+              drawingControlOptions: {
+                drawingModes: ['rectangle'],
+              },
+            }}
+          />
+        </GoogleMap>
+        <div style={{ marginTop: '0.5rem', fontWeight: 'bold', color: 'black' }}>
           Current Zoom Level: {zoomLevel}
         </div>
-      <div className="controls" style={{ marginTop: '1rem', textAlign: 'center' }}>
-        <button  onClick={handleSubmit} style={{ marginRight: '1rem' }}>
-          Submit Rectangle
-        </button>
-        <button onClick={handleClear}>
-          Clear Rectangle
-        </button>
+        <div
+          className="controls"
+          style={{ marginTop: '1rem', textAlign: 'center' }}
+        >
+          <button onClick={handleSubmit} style={{ marginRight: '1rem' }}>
+            Submit Rectangle
+          </button>
+          <button onClick={handleClear}>Clear Rectangle</button>
+        </div>
+        <div id="result" style={{ marginTop: '1rem', textAlign: 'center' }}>
+          <p id="status" style={{ color: 'black', fontWeight: 'bold' }}>
+            {statusMessage}
+          </p>
+        </div>
       </div>
-
-      <div id="result" style={{ marginTop: '1rem', textAlign: 'center' }}>
-        <p id="status">h</p>
-      </div>
-      </div>
-    </div>  
+    </div>
   );
 }
