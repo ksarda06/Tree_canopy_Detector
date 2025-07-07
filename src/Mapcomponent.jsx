@@ -1,8 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { GoogleMap, useLoadScript, DrawingManager } from '@react-google-maps/api';
 
 const libraries = ['drawing'];
-
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const mapContainerStyle = {
@@ -15,7 +14,7 @@ const center = {
   lng: 81.629997,
 };
 
-export default function MapComponent({ onAnalyze }) {
+export default function MapComponent({ onAnalyze, overlayData }) {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: apiKey,
     libraries,
@@ -24,18 +23,28 @@ export default function MapComponent({ onAnalyze }) {
   const [rectangleBounds, setRectangleBounds] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [rectangleOverlay, setRectangleOverlay] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(12);
+  const [zoomLevel, setZoomLevel] = useState(14);
   const [mapInstance, setMapInstance] = useState(null);
+  const overlayRef = useRef(null); // Store the prediction overlay
 
   const handleMapLoad = (map) => {
-    map.setMapTypeId('satellite');
+    map.setMapTypeId('hybrid');
     setMapInstance(map);
     setZoomLevel(map.getZoom());
   };
 
   const handleZoomChanged = () => {
     if (mapInstance) {
-      setZoomLevel(mapInstance.getZoom());
+      const currentZoom = mapInstance.getZoom();
+      setZoomLevel(currentZoom);
+
+      if (overlayRef.current) {
+        if (currentZoom === 19) {
+          overlayRef.current.setMap(mapInstance);
+        } else {
+          overlayRef.current.setMap(null);
+        }
+      }
     }
   };
 
@@ -63,16 +72,16 @@ export default function MapComponent({ onAnalyze }) {
     }
 
     try {
-      setStatusMessage('Submitting polygon to backend...');
+      setStatusMessage('Submitting AOI to backend...');
       if (onAnalyze) {
         await onAnalyze(rectangleBounds);
-        setStatusMessage('Polygon submitted successfully!');
+        setStatusMessage('Prediction requested!');
       } else {
         setStatusMessage('No onAnalyze function provided.');
       }
     } catch (error) {
       console.error(error);
-      setStatusMessage('Error submitting polygon.');
+      setStatusMessage('Error submitting AOI.');
     }
   };
 
@@ -83,7 +92,37 @@ export default function MapComponent({ onAnalyze }) {
     }
     setRectangleBounds(null);
     setStatusMessage('Polygon cleared.');
+
+    if (overlayRef.current) {
+      overlayRef.current.setMap(null);
+    }
   };
+
+  // When new overlay data arrives, create GroundOverlay
+  useEffect(() => {
+    if (overlayData && mapInstance) {
+      if (overlayRef.current) {
+        overlayRef.current.setMap(null); // Remove old overlay
+      }
+
+      const bounds = new window.google.maps.LatLngBounds(
+        new window.google.maps.LatLng(overlayData.bounds[0][0], overlayData.bounds[0][1]),
+        new window.google.maps.LatLng(overlayData.bounds[1][0], overlayData.bounds[1][1])
+      );
+
+      const overlay = new window.google.maps.GroundOverlay(
+        overlayData.url,
+        bounds,
+        { opacity: 0.5 }
+      );
+
+      if (zoomLevel === 19) {
+        overlay.setMap(mapInstance);
+      }
+
+      overlayRef.current = overlay;
+    }
+  }, [overlayData, mapInstance, zoomLevel]);
 
   if (loadError) return <div>Error loading maps</div>;
   if (!isLoaded) return <div>Loading Maps...</div>;
@@ -117,6 +156,7 @@ export default function MapComponent({ onAnalyze }) {
           center={center}
           options={{
             mapTypeControl: false,
+            streetViewControl: false,
           }}
           onLoad={handleMapLoad}
           onZoomChanged={handleZoomChanged}
